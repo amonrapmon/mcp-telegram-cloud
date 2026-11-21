@@ -1,5 +1,5 @@
 # Release v1.43.4: immutable source identity shared by build and runtime label.
-ARG MCP_TELEGRAM_COMMIT=cdb0ef9a5ceac72be577ef5e1d4e76459002a199
+ARG MCP_TELEGRAM_COMMIT=4ab60fadd74db6b7dbbdb5c021793df7ed0317e0
 
 # Stage 1: Build mcp-telegram from source (with declarations)
 # Core lib (mcp-telegram) is npm-native but Bun compiles it fine.
@@ -9,12 +9,14 @@ FROM oven/bun:1.4.4-alpine AS telegram-lib
 ARG MCP_TELEGRAM_COMMIT
 RUN apk add --no-cache git
 RUN git init /telegram \
-    && git -C /telegram remote add origin https://github.com/mcp-telegram/mcp-telegram.git \
+    && git -C /telegram remote add origin https://github.com/amonrapmon/mcp-telegram.git \
     && git -C /telegram fetch --depth 1 origin "${MCP_TELEGRAM_COMMIT}" \
     && git -C /telegram checkout --detach FETCH_HEAD \
     && test "$(git -C /telegram rev-parse HEAD)" = "${MCP_TELEGRAM_COMMIT}"
 WORKDIR /telegram
 RUN bun install --frozen-lockfile --ignore-scripts
+# Rich: patch GramJS TL schema from pinned TDLib layer-233 source, then verify.
+RUN bun scripts/telegram-schema.mjs && bun scripts/telegram-schema.mjs --check
 RUN bun run build
 
 # Stage 2: Install cloud deps via bun.
