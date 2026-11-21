@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+import { join } from "node:path";
 import { z } from "zod";
 import type { TelegramService } from "@overpod/mcp-telegram/service";
 import type { ToolDefinition } from "../tool-registry.js";
@@ -12,13 +14,21 @@ interface RichApi {
   previewRichMessage(markdown: string, options?: { rtl?: boolean; noautolink?: boolean }): unknown;
   getRichCapabilities(): Promise<unknown>;
   getRichMessage(chatId: string, messageId: number): Promise<unknown>;
-  getRichSendStatus(requestId: string): Promise<unknown>;
+  getRichSendStatus(requestId: string, journalDirectory?: string): Promise<unknown>;
   writeRichMessage(
     operation: "send" | "edit" | "draft", chatId: string, requestId: string,
-    markdown: string, options?: RichOptions, messageId?: number,
+    markdown: string, options?: RichOptions, messageId?: number, journalDirectory?: string,
   ): Promise<unknown>;
 }
 const rich = (telegram: TelegramService): RichApi => telegram as unknown as RichApi;
+
+/** Durable journal on Cloud data volume, isolated by OAuth user and captured account ID. */
+export function richJournalDirectory(userId: string | undefined, accountId: number | undefined): string {
+  if (!userId) throw new Error("A connected OAuth user is required for Rich journal access.");
+  const userHash = createHash("sha256").update(userId).digest("hex");
+  const root = process.env.MCP_TELEGRAM_RICH_JOURNAL_ROOT || "/app/data/rich-journal";
+  return join(root, userHash, String(accountId ?? 0));
+}
 
 export const RICH_WRITE_FLAG = "MCP_TELEGRAM_ENABLE_RICH_WRITE";
 export const RICH_ALLOWED_CHATS_FLAG = "MCP_TELEGRAM_RICH_ALLOWED_CHAT_IDS";
@@ -75,8 +85,8 @@ export const RICH_TOOLS: ToolDefinition[] = [
     description: "Check a durable Rich operation by requestId. Never resends.",
     inputSchema: { requestId },
     annotations: READ_ONLY,
-    handler: async ({ requestId }, { telegram }) =>
-      textResult(JSON.stringify(await rich(telegram).getRichSendStatus(requestId))),
+    handler: async ({ requestId }, { telegram, userId, sourceAccountId }) =>
+      textResult(JSON.stringify(await rich(telegram).getRichSendStatus(requestId, richJournalDirectory(userId, sourceAccountId)))),
   },
   {
     name: "telegram-send-rich-message",
@@ -84,9 +94,10 @@ export const RICH_TOOLS: ToolDefinition[] = [
     requiresEnv: RICH_WRITE_FLAG,
     inputSchema: { chatId, requestId, markdown, ...sendOptions },
     annotations: CONFIRMED_WRITE_PUBLIC,
-    handler: async ({ chatId, requestId, markdown, ...options }, { telegram }) => {
+    handler: async ({ chatId, requestId, markdown, ...options }, { telegram, userId, sourceAccountId }) => {
       assertRichWriteDestination(chatId);
-      return textResult(JSON.stringify(await rich(telegram).writeRichMessage("send", chatId, requestId, markdown, options)));
+      const journal = richJournalDirectory(userId, sourceAccountId);
+      return textResult(JSON.stringify(await rich(telegram).writeRichMessage("send", chatId, requestId, markdown, options, undefined, journal)));
     },
   },
   {
@@ -95,10 +106,11 @@ export const RICH_TOOLS: ToolDefinition[] = [
     requiresEnv: RICH_WRITE_FLAG,
     inputSchema: { chatId, requestId, messageId, markdown, ...style },
     annotations: CONFIRMED_WRITE_PUBLIC,
-    handler: async ({ chatId, requestId, messageId, markdown, rtl, noautolink }, { telegram }) => {
+    handler: async ({ chatId, requestId, messageId, markdown, rtl, noautolink }, { telegram, userId, sourceAccountId }) => {
       assertRichWriteDestination(chatId);
+      const journal = richJournalDirectory(userId, sourceAccountId);
       return textResult(JSON.stringify(
-        await rich(telegram).writeRichMessage("edit", chatId, requestId, markdown, { rtl, noautolink }, messageId),
+        await rich(telegram).writeRichMessage("edit", chatId, requestId, markdown, { rtl, noautolink }, messageId, journal),
       ));
     },
   },
@@ -108,9 +120,10 @@ export const RICH_TOOLS: ToolDefinition[] = [
     requiresEnv: RICH_WRITE_FLAG,
     inputSchema: { chatId, requestId, markdown, ...style, replyTo: messageId.optional(), topicId: messageId.optional() },
     annotations: CONFIRMED_WRITE_LOCAL,
-    handler: async ({ chatId, requestId, markdown, ...options }, { telegram }) => {
+    handler: async ({ chatId, requestId, markdown, ...options }, { telegram, userId, sourceAccountId }) => {
       assertRichWriteDestination(chatId);
-      return textResult(JSON.stringify(await rich(telegram).writeRichMessage("draft", chatId, requestId, markdown, options)));
+      const journal = richJournalDirectory(userId, sourceAccountId);
+      return textResult(JSON.stringify(await rich(telegram).writeRichMessage("draft", chatId, requestId, markdown, options, undefined, journal)));
     },
   },
 ];
