@@ -19,6 +19,8 @@ MCP_TELEGRAM_RICH_ALLOWED_CHAT_IDS=
 
 Both the env flag (=1) and exact destination allowlist are mandatory. The write-tools are absent unless enabled. No edits to production secrets, domain or session volume in this change.
 
+Rich operation receipts are persisted under `/app/data/rich-journal/<sha256 OAuth user>/<captured account id>` (or explicit `MCP_TELEGRAM_RICH_JOURNAL_ROOT`). The directory MUST be persistent and writable. Ambiguous/rejected receipts set `isError:true` while preserving their requestId.
+
 A requestId UUIDv4 protects against duplicate submissions. After a timeout, query get-rich-send-status with the SAME ID. Do not retry with a new one before reconciling actual Telegram history.
 
 Supported in MVP: text-rich headings, tables, lists, quotes, links, code; **not** media, HTML, formulas, footnotes or nested lists. Reject unsupported constructs rather than silently stripping them.

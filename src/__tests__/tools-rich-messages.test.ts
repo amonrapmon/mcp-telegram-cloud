@@ -3,7 +3,7 @@ process.env.TELEGRAM_API_ID ??= "1";
 process.env.TELEGRAM_API_HASH ??= "stub";
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { RICH_TOOLS, RICH_WRITE_FLAG, assertRichWriteDestination } from "../tools/rich-messages.js";
+import { RICH_TOOLS, RICH_WRITE_FLAG, assertRichWriteDestination, richJournalDirectory, richWriteResult } from "../tools/rich-messages.js";
 
 describe("Rich tool registration", () => {
   it("exposes seven intentional tools", () => {
@@ -26,6 +26,20 @@ describe("Rich tool registration", () => {
       assert.equal(tool.requiresEnv, RICH_WRITE_FLAG);
       assert.equal(tool.annotations.readOnlyHint, false);
     });
+  });
+  it("returns ambiguous and rejected write receipts as errors", () => {
+    for (const state of ["uncertain", "submitting", "rejected"]) {
+      const result = richWriteResult({ state, requestId: "test" });
+      assert.equal(result.isError, true);
+    }
+    assert.equal(richWriteResult({ state: "sent" }).isError, undefined);
+  });
+  it("keeps operation journal namespaces stable and isolated", () => {
+    const first = richJournalDirectory("alice", 0);
+    assert.equal(first, richJournalDirectory("alice", 0));
+    assert.notEqual(first, richJournalDirectory("bob", 0));
+    assert.notEqual(first, richJournalDirectory("alice", 1));
+    assert.throws(() => richJournalDirectory(undefined, 0), /OAuth user/);
   });
   it("fails closed for any non-allowlisted chat", () => {
     assert.throws(() => assertRichWriteDestination("@no_skazhu", ""), /not allowed/);

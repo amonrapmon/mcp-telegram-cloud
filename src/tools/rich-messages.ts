@@ -21,6 +21,20 @@ interface RichApi {
   ): Promise<unknown>;
 }
 const rich = (telegram: TelegramService): RichApi => telegram as unknown as RichApi;
+/**
+ * An ambiguous Telegram acknowledgement must never look like a completed send.
+ * The durable receipt is still returned so callers can query its requestId.
+ */
+export function richWriteResult(receipt: unknown) {
+  const output = textResult(JSON.stringify(receipt));
+  const status = (receipt && typeof receipt === "object" && "state" in receipt)
+    ? (receipt as { state?: unknown }).state
+    : undefined;
+  return status === "uncertain" || status === "submitting" || status === "rejected"
+    ? { ...output, isError: true }
+    : output;
+}
+
 
 /** Durable journal on Cloud data volume, isolated by OAuth user and captured account ID. */
 export function richJournalDirectory(userId: string | undefined, accountId: number | undefined): string {
@@ -97,7 +111,7 @@ export const RICH_TOOLS: ToolDefinition[] = [
     handler: async ({ chatId, requestId, markdown, ...options }, { telegram, userId, sourceAccountId }) => {
       assertRichWriteDestination(chatId);
       const journal = richJournalDirectory(userId, sourceAccountId);
-      return textResult(JSON.stringify(await rich(telegram).writeRichMessage("send", chatId, requestId, markdown, options, undefined, journal)));
+      return richWriteResult(await rich(telegram).writeRichMessage("send", chatId, requestId, markdown, options, undefined, journal));
     },
   },
   {
@@ -109,9 +123,9 @@ export const RICH_TOOLS: ToolDefinition[] = [
     handler: async ({ chatId, requestId, messageId, markdown, rtl, noautolink }, { telegram, userId, sourceAccountId }) => {
       assertRichWriteDestination(chatId);
       const journal = richJournalDirectory(userId, sourceAccountId);
-      return textResult(JSON.stringify(
+      return richWriteResult(
         await rich(telegram).writeRichMessage("edit", chatId, requestId, markdown, { rtl, noautolink }, messageId, journal),
-      ));
+      );
     },
   },
   {
@@ -123,7 +137,7 @@ export const RICH_TOOLS: ToolDefinition[] = [
     handler: async ({ chatId, requestId, markdown, ...options }, { telegram, userId, sourceAccountId }) => {
       assertRichWriteDestination(chatId);
       const journal = richJournalDirectory(userId, sourceAccountId);
-      return textResult(JSON.stringify(await rich(telegram).writeRichMessage("draft", chatId, requestId, markdown, options, undefined, journal)));
+      return richWriteResult(await rich(telegram).writeRichMessage("draft", chatId, requestId, markdown, options, undefined, journal));
     },
   },
 ];
