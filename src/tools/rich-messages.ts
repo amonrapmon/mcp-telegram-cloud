@@ -10,7 +10,8 @@ import type { ToolDefinition } from "../tool-registry.js";
 import { READ_ONLY, CONFIRMED_WRITE_LOCAL, CONFIRMED_WRITE_PUBLIC, textResult } from "./helpers.js";
 
 type RichPhoto = {
-  file: UploadedFile; identity: string; caption?: string; placement?: "before" | "after";
+  file?: UploadedFile; sourceMessageId?: number;
+  identity: string; caption?: string; placement?: "before" | "after";
 };
 type RichOptions = {
   photo?: RichPhoto;
@@ -70,20 +71,27 @@ const requestId = z.string().uuid().describe("UUID v4, reuse after an uncertain 
 const messageId = z.number().int().positive().max(2147483647);
 const style = { rtl: z.boolean().optional(), noautolink: z.boolean().optional() };
 export const RICH_PHOTO_MAX_BYTES = 20 * 1024 * 1024;
+const savedPhotoSource = z.object({
+  kind: z.literal("telegram"),
+  chatId: z.literal("me"),
+  messageId,
+});
+const richPhotoSource = z.union([sourceSchema, savedPhotoSource]);
 const photo = z.object({
-  source: sourceSchema,
+  source: richPhotoSource,
   caption: z.string().max(1024).optional(),
   placement: z.enum(["before", "after"]).optional(),
-}).optional().describe("Optional ONE native inline photo in the same Rich message; HTTPS URL or account-bound uploadId. No extra Telegram post or edit.");
+}).optional().describe("Optional ONE native inline photo in the same Rich message: HTTPS URL, account-bound uploadId, or an existing Telegram photo from Saved Messages (kind=telegram,chatId=me,messageId). No extra public post or edit.");
 
-function photoIdentity(source: z.infer<typeof sourceSchema>) {
+function photoIdentity(source: z.infer<typeof richPhotoSource>) {
+  if (source.kind === "telegram") return `telegram:me:${source.messageId}`;
   return source.kind === "url" ? `url:${source.url}` : `upload:${source.uploadId}`;
 }
 function digest(value: unknown) {
   return createHash("sha256").update(typeof value === "string" ? value : JSON.stringify(value)).digest("hex");
 }
 /** Before touching an upload source, retrieve a matching saved result for this UUID. */
-export function assertMatchingPhotoReceipt(existing: unknown, markdown: string, source: z.infer<typeof sourceSchema>,
+export function assertMatchingPhotoReceipt(existing: unknown, markdown: string, source: z.infer<typeof richPhotoSource>,
   caption: string | undefined, placement: "before" | "after" | undefined, opts: Record<string, unknown>) {
   if (!existing || typeof existing !== "object") return null;
   const receipt = existing as Record<string, unknown>;
@@ -143,7 +151,7 @@ export const RICH_TOOLS: ToolDefinition[] = [
   },
   {
     name: "telegram-send-rich-message",
-    description: "Send a native MTProto Rich message once with optional inline photo (public HTTPS or staged uploadId). One Telegram post, no follow-up edit. Requires explicit env opt-in, allowlist and Telegram Premium.",
+    description: "Send one native MTProto Rich message with optional inline photo. Source: HTTPS, staged uploadId, or existing photo in Saved Messages (telegram/me/messageId), without reupload. Exact destination allowlist and Premium required.",
     requiresEnv: RICH_WRITE_FLAG,
     inputSchema: { chatId, requestId, markdown, photo, ...sendOptions },
     annotations: CONFIRMED_WRITE_PUBLIC,
@@ -159,6 +167,21 @@ export const RICH_TOOLS: ToolDefinition[] = [
       const previous = assertMatchingPhotoReceipt(existing, markdown, photo.source, photo.caption, photo.placement, options);
       if (previous) return richWriteResult(previous);
       const budget = new CallBudget();
+      if (photo.source.kind === "telegram") {
+        return richWriteResult(await sendBounded(deps, budget, () => rich(deps.telegram).writeRichMessage(
+          "send", chatId, requestId, markdown,
+          {
+            ...options,
+            photo: {
+              sourceMessageId: photo.source.messageId,
+              identity: photoIdentity(photo.source),
+              caption: photo.caption,
+              placement: photo.placement,
+            },
+          },
+          undefined, journal,
+        )));
+      }
       const resolved = await resolveSource(photo.source, deps, budget, RICH_PHOTO_MAX_BYTES);
       if (!resolved.ok) return resolved.error;
       try {

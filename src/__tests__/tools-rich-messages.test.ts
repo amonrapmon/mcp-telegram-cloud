@@ -39,6 +39,15 @@ describe("Rich tool registration", () => {
     assert.ok(schema.safeParse({
       ...basic, photo: { source: { kind: "upload", uploadId: "upl_1" }, caption: "Моя коробка!" },
     }).success);
+    assert.ok(schema.safeParse({
+      ...basic, photo: { source: { kind: "telegram", chatId: "me", messageId: 400468 } },
+    }).success);
+    assert.equal(schema.safeParse({
+      ...basic, photo: { source: { kind: "telegram", chatId: "@someone", messageId: 400468 } },
+    }).success, false);
+    assert.equal(schema.safeParse({
+      ...basic, photo: { source: { kind: "telegram", chatId: "me", messageId: 0 } },
+    }).success, false);
     assert.equal(schema.safeParse({
       ...basic, photo: { source: { kind: "url", url: "not-a-url" } },
     }).success, false);
@@ -59,6 +68,7 @@ describe("Rich tool registration", () => {
     assert.equal(assertMatchingPhotoReceipt(receipt, markdown, source, undefined, undefined, { silent: true }), receipt);
     assert.throws(() => assertMatchingPhotoReceipt(receipt, markdown, source, undefined, undefined, { silent: false }), /another/);
     assert.throws(() => assertMatchingPhotoReceipt(receipt, markdown, { kind: "url", url: "https://example.org/other.png" }, undefined, undefined, { silent: true }), /another/);
+    assert.throws(() => assertMatchingPhotoReceipt(receipt, markdown, { kind: "telegram", chatId: "me", messageId: 400468 }, undefined, undefined, { silent: true }), /another/);
   });
   it("gates all writing tools and leaves reads available", () => {
     RICH_TOOLS.slice(0, 4).forEach((tool) => {
