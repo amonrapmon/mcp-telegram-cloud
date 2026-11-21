@@ -2,8 +2,10 @@ process.env.ISSUER ??= "https://rich-test.invalid";
 process.env.TELEGRAM_API_ID ??= "1";
 process.env.TELEGRAM_API_HASH ??= "stub";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { describe, it } from "node:test";
-import { RICH_TOOLS, RICH_WRITE_FLAG, assertRichWriteDestination, richJournalDirectory, richWriteResult } from "../tools/rich-messages.js";
+import { z } from "zod";
+import { RICH_TOOLS, RICH_WRITE_FLAG, assertRichWriteDestination, assertMatchingPhotoReceipt, richJournalDirectory, richWriteResult } from "../tools/rich-messages.js";
 
 describe("Rich tool registration", () => {
   it("exposes seven intentional tools", () => {
@@ -16,6 +18,42 @@ describe("Rich tool registration", () => {
       "telegram-edit-rich-message",
       "telegram-save-rich-draft",
     ]);
+  });
+  it("accepts an inline image source without creating a second publishing tool", () => {
+    const send = RICH_TOOLS.find((tool) => tool.name === "telegram-send-rich-message");
+    assert.ok(send);
+    const schema = z.object(send.inputSchema ?? {});
+    const basic = {
+      chatId: "@no_skazhu", requestId: "6b63c546-510d-4283-99c9-9376a627eb02",
+      markdown: "# Царь\n\nТекст",
+    };
+    assert.ok(schema.safeParse(basic).success);
+    assert.ok(schema.safeParse({
+      ...basic, photo: { source: { kind: "url", url: "https://example.org/cat.png" }, placement: "before" },
+    }).success);
+    assert.ok(schema.safeParse({
+      ...basic, photo: { source: { kind: "upload", uploadId: "upl_1" }, caption: "Моя коробка!" },
+    }).success);
+    assert.equal(schema.safeParse({
+      ...basic, photo: { source: { kind: "url", url: "not-a-url" } },
+    }).success, false);
+    assert.equal(schema.safeParse({
+      ...basic, photo: { source: { kind: "upload", uploadId: "upl_1" }, caption: "x".repeat(1025) },
+    }).success, false);
+  });
+  it("returns a prior receipt only for the same rich text, image and flags", () => {
+    const markdown = "# Царь";
+    const source = { kind: "url" as const, url: "https://example.org/cat.png" };
+    const descriptor = { identity: "url:https://example.org/cat.png", caption: "", placement: "before" };
+    const sha = (v: unknown) => createHash("sha256").update(JSON.stringify(v)).digest("hex");
+    const receipt = {
+      contentHash: sha({ markdown, photoIdentity: descriptor.identity }),
+      optionsHash: sha({ operation: "send", options: { silent: true }, photo: descriptor }),
+      state: "sent",
+    };
+    assert.equal(assertMatchingPhotoReceipt(receipt, markdown, source, undefined, undefined, { silent: true }), receipt);
+    assert.throws(() => assertMatchingPhotoReceipt(receipt, markdown, source, undefined, undefined, { silent: false }), /another/);
+    assert.throws(() => assertMatchingPhotoReceipt(receipt, markdown, { kind: "url", url: "https://example.org/other.png" }, undefined, undefined, { silent: true }), /another/);
   });
   it("gates all writing tools and leaves reads available", () => {
     RICH_TOOLS.slice(0, 4).forEach((tool) => {

@@ -37,3 +37,28 @@ Supported in MVP: text-rich headings, tables, lists, quotes, links, code; **not*
 Rollback: previous Cloud image and core Git SHA. Session data is not migrated or modified by this PR.
 
 Source: [Core fork PR](https://github.com/amonrapmon/mcp-telegram/pull/1).
+
+
+## Inline image in one native Rich send (Draft, requires new core and Cloud image)
+
+`telegram-send-rich-message` now accepts an optional `photo` alongside `markdown`:
+
+```json
+{
+  "chatId": "@no_skazhu",
+  "requestId": "<fresh UUID v4>",
+  "markdown": "# Обогатили Telegram\n\n| Было | Стало |\n|---|---|\n| Текст | Rich |",
+  "photo": {
+    "source": { "kind": "url", "url": "https://public-example.example/cat.jpg" },
+    "caption": "Царь Шрёдингера на помойке",
+    "placement": "before"
+  }
+}
+```
+
+The URL must be genuinely public HTTPS; Cloud uses the existing SSRF-checked stream fetcher.
+For privately generated files, upload them first with `telegram-create-upload-link` or `POST /my/upload`, then use `{kind:"upload", uploadId:"upl_..."}`. **The upload is staging only**, never a channel message. A ChatGPT sandbox file path cannot be passed directly to the remote Cloud server.
+
+The one MCP send call resolves the photo (max 20 MiB; JPEG, PNG, WebP), stages it via MTProto `messages.uploadMedia` (does not publish), builds `PageBlockPhoto` and `InputRichMessage.photos`, then calls `messages.sendMessage` **once** with the complete Rich message. Existing UUID journal, exact chat allowlist, Premium check and readback apply to the combined payload. Replays with the same UUID read the durable receipt without re-uploading or reposting; mismatched payloads are refused.
+
+Only one photo per Rich call is implemented here. Slideshows/carousels and video are out of scope. Do not claim these work in this build. Never post to a channel without explicit approval of the exact image and text.

@@ -31,7 +31,7 @@ import { CONFIRMED_WRITE_PUBLIC, LOCAL_WRITE, replyTargetFields, safeOpt, saniti
  * uploaded-file handle to core instead of a path.
  */
 
-const sourceSchema = z
+export const sourceSchema = z
   .discriminatedUnion("kind", [
     z.object({
       kind: z.literal("upload"),
@@ -79,6 +79,7 @@ async function uploadFromUrl(
   userId: string,
   budget: CallBudget,
   onTimeout: () => void,
+  maxBytes = UPLOAD_MAX_BYTES,
 ): Promise<UploadedFile> {
   // Fetch and upload are one bounded step of a transfer slot: the deadline answers the
   // tool call and the abort closes the HTTP response, so a hung body can't pin the slot.
@@ -89,7 +90,7 @@ async function uploadFromUrl(
     const timeoutMs = budget.take();
     return await lease.step(
       async (signal) => {
-        const opened = await openUrl(url, { maxBytes: UPLOAD_MAX_BYTES });
+        const opened = await openUrl(url, { maxBytes });
         if (!opened.ok)
           throw new MediaError("URL_FETCH_DENIED", `URL fetch denied (${opened.reason}): ${opened.message}`);
         const name = fileNameFromUrl(url) ?? "file";
@@ -127,7 +128,7 @@ async function uploadFromUrl(
             for await (const chunk of body) {
               signal.throwIfAborted();
               total += chunk.byteLength;
-              if (total > appConfig.uploadFileMaxBytes) {
+              if (total > Math.min(appConfig.uploadFileMaxBytes, maxBytes)) {
                 throw new MediaError(
                   "URL_FETCH_DENIED",
                   `URL fetch denied (too_large): the server sent no Content-Length and the body exceeds ${appConfig.uploadFileMaxBytes} bytes.`,
@@ -180,7 +181,7 @@ async function* drain(parts: Array<Uint8Array | undefined>): AsyncGenerator<Uint
  * After the call starts its outcome is reported as is: a deadline says the message may
  * still arrive, so an agent checks the chat instead of sending a duplicate.
  */
-async function sendBounded<T>(deps: ToolDeps, budget: CallBudget, send: () => Promise<T>): Promise<T> {
+export async function sendBounded<T>(deps: ToolDeps, budget: CallBudget, send: () => Promise<T>): Promise<T> {
   const userId = deps.userId ?? "";
   const binding = deps.sessions
     ? accountBinding(deps.sessions, userId, deps.sourceAccountId, deps.sourceAttachmentId)
@@ -219,10 +220,11 @@ async function sendBounded<T>(deps: ToolDeps, budget: CallBudget, send: () => Pr
  * per session), so an upload made with another account is refused, not silently lost.
  * Cleanup consumes the upload id: a failed send does not keep it for a retry.
  */
-async function resolveSource(
+export async function resolveSource(
   source: SourceArg,
   deps: ToolDeps,
   budget: CallBudget,
+  maxBytes = UPLOAD_MAX_BYTES,
 ): Promise<{ ok: true; resolved: ResolvedSource } | { ok: false; error: ReturnType<typeof mediaErrorResult> }> {
   if (!deps.uploads || !deps.openUrl) {
     return {
@@ -269,6 +271,8 @@ async function resolveSource(
         ),
       };
     }
+    if (found.file.size > maxBytes)
+      return { ok: false, error: mediaErrorResult("UPLOAD_FAILED", "Image exceeds the Rich media size limit.") };
     const uploadId = source.uploadId;
     return { ok: true, resolved: { file: found.file, cleanup: () => void uploads.consume(userId, uploadId) } };
   }
@@ -276,6 +280,7 @@ async function resolveSource(
   const userId = deps.userId;
   const file = await uploadFromUrl(deps.telegram, deps.openUrl, source.url, userId, budget, () =>
     markWedged(deps.sessions, userId, deps.telegram),
+    maxBytes,
   );
   // The handle only works for the account that uploaded it; it may have been detached meanwhile.
   if (

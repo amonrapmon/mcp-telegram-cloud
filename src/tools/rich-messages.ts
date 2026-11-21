@@ -2,11 +2,18 @@ import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { z } from "zod";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
-import type { TelegramService } from "@overpod/mcp-telegram/service";
+import type { TelegramService, UploadedFile } from "@overpod/mcp-telegram/service";
+import { CallBudget } from "../media-queue.js";
+import { mediaToolOnError } from "../media-errors.js";
+import { resolveSource, sendBounded, sourceSchema } from "./uploads.js";
 import type { ToolDefinition } from "../tool-registry.js";
 import { READ_ONLY, CONFIRMED_WRITE_LOCAL, CONFIRMED_WRITE_PUBLIC, textResult } from "./helpers.js";
 
+type RichPhoto = {
+  file: UploadedFile; identity: string; caption?: string; placement?: "before" | "after";
+};
 type RichOptions = {
+  photo?: RichPhoto;
   silent?: boolean; protectContent?: boolean; clearDraft?: boolean;
   replyTo?: number; topicId?: number; scheduleDate?: number;
   rtl?: boolean; noautolink?: boolean;
@@ -62,6 +69,37 @@ const markdown = z.string().min(1).max(131072).describe(
 const requestId = z.string().uuid().describe("UUID v4, reuse after an uncertain result, never blindly resend.");
 const messageId = z.number().int().positive().max(2147483647);
 const style = { rtl: z.boolean().optional(), noautolink: z.boolean().optional() };
+export const RICH_PHOTO_MAX_BYTES = 20 * 1024 * 1024;
+const photo = z.object({
+  source: sourceSchema,
+  caption: z.string().max(1024).optional(),
+  placement: z.enum(["before", "after"]).optional(),
+}).optional().describe("Optional ONE native inline photo in the same Rich message; HTTPS URL or account-bound uploadId. No extra Telegram post or edit.");
+
+function photoIdentity(source: z.infer<typeof sourceSchema>) {
+  return source.kind === "url" ? `url:${source.url}` : `upload:${source.uploadId}`;
+}
+function digest(value: unknown) {
+  return createHash("sha256").update(typeof value === "string" ? value : JSON.stringify(value)).digest("hex");
+}
+/** Before touching an upload source, retrieve a matching saved result for this UUID. */
+export function assertMatchingPhotoReceipt(existing: unknown, markdown: string, source: z.infer<typeof sourceSchema>,
+  caption: string | undefined, placement: "before" | "after" | undefined, opts: Record<string, unknown>) {
+  if (!existing || typeof existing !== "object") return null;
+  const receipt = existing as Record<string, unknown>;
+  const identity = photoIdentity(source);
+  const descriptor = { identity, caption: caption ?? "", placement: placement ?? "before" };
+  const normalizedOptions = Object.fromEntries(
+    Object.entries(opts).filter(([, v]) => v !== undefined).sort(),
+  );
+  const contentHash = digest({ markdown, photoIdentity: identity });
+  const optionsHash = digest({ operation: "send", options: normalizedOptions, photo: descriptor });
+  if (receipt.contentHash !== contentHash || receipt.optionsHash !== optionsHash) {
+    throw new Error("requestId already belongs to another Rich message payload.");
+  }
+  return existing;
+}
+
 const sendOptions = {
   ...style,
   silent: z.boolean().optional(),
@@ -107,12 +145,37 @@ export const RICH_TOOLS: ToolDefinition[] = [
     name: "telegram-send-rich-message",
     description: "Send a native MTProto Rich message once. Requires explicit env opt-in, allowlist and Telegram Premium eligibility.",
     requiresEnv: RICH_WRITE_FLAG,
-    inputSchema: { chatId, requestId, markdown, ...sendOptions },
+    inputSchema: { chatId, requestId, markdown, photo, ...sendOptions },
     annotations: CONFIRMED_WRITE_PUBLIC,
-    handler: async ({ chatId, requestId, markdown, ...options }, { telegram, userId, sourceAccountId }) => {
+    onError: mediaToolOnError("telegram-send-rich-message"),
+    handler: async ({ chatId, requestId, markdown, photo, ...options }, deps) => {
+      // Fail closed before opening arbitrary URLs or touching Telegram uploads.
       assertRichWriteDestination(chatId);
-      const journal = richJournalDirectory(userId, sourceAccountId);
-      return richWriteResult(await rich(telegram).writeRichMessage("send", chatId, requestId, markdown, options, undefined, journal));
+      const journal = richJournalDirectory(deps.userId, deps.sourceAccountId);
+      if (!photo) {
+        return richWriteResult(await rich(deps.telegram).writeRichMessage("send", chatId, requestId, markdown, options, undefined, journal));
+      }
+      const existing = await rich(deps.telegram).getRichSendStatus(requestId, journal);
+      const previous = assertMatchingPhotoReceipt(existing, markdown, photo.source, photo.caption, photo.placement, options);
+      if (previous) return richWriteResult(previous);
+      const budget = new CallBudget();
+      const resolved = await resolveSource(photo.source, deps, budget, RICH_PHOTO_MAX_BYTES);
+      if (!resolved.ok) return resolved.error;
+      try {
+        const file = resolved.resolved.file;
+        const mime = file.mimeType?.toLowerCase();
+        if (mime && !["image/jpeg", "image/png", "image/webp"].includes(mime))
+          throw new Error("Rich photo must be a JPEG, PNG or WebP image.");
+        if (!mime && !/\.(?:jpe?g|png|webp)$/i.test(file.fileName))
+          throw new Error("Rich photo file type is unsupported.");
+        return richWriteResult(await sendBounded(deps, budget, () => rich(deps.telegram).writeRichMessage(
+          "send", chatId, requestId, markdown,
+          { ...options, photo: { file, identity: photoIdentity(photo.source), caption: photo.caption, placement: photo.placement } },
+          undefined, journal,
+        )));
+      } finally {
+        resolved.resolved.cleanup();
+      }
     },
   },
   {
