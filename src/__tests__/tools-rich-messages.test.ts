@@ -5,7 +5,12 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { describe, it } from "node:test";
 import { z } from "zod";
-import { RICH_TOOLS, RICH_WRITE_FLAG, assertRichWriteDestination, assertMatchingPhotoReceipt, richJournalDirectory, richWriteResult } from "../tools/rich-messages.js";
+// Rich tool imports now transitively load media-queue -> config at module evaluation.
+// Static ESM imports are hoisted, so the env defaults above must precede this dynamic import.
+const {
+  RICH_TOOLS, RICH_WRITE_FLAG, assertRichWriteDestination,
+  assertMatchingPhotoReceipt, richJournalDirectory, richWriteResult,
+} = await import("../tools/rich-messages.js");
 
 describe("Rich tool registration", () => {
   it("exposes seven intentional tools", () => {
