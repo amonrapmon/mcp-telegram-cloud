@@ -20,6 +20,7 @@ import { MESSAGING_TOOLS } from "./tools/messaging.js";
 import { MISC_TOOLS } from "./tools/misc.js";
 import { PROFILE_TOOLS } from "./tools/profile.js";
 import { READ_TOOLS } from "./tools/read.js";
+import { RICH_TOOLS } from "./tools/rich-messages.js";
 import { STARS_TOOLS } from "./tools/stars.js";
 import { STATS_TOOLS } from "./tools/stats.js";
 import { STORIES_TOOLS } from "./tools/stories.js";
@@ -29,6 +30,7 @@ import type { openUrlStream } from "./url-fetcher.js";
 
 export const TOOLS: ToolDefinition[] = [
   ...READ_TOOLS,
+  ...RICH_TOOLS,
   ...MESSAGING_TOOLS,
   ...CHATS_TOOLS,
   ...PROFILE_TOOLS,

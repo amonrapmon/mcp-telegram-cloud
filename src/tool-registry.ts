@@ -119,6 +119,9 @@ export const SESSION_REVOKED_MSG =
  * Everything else gets `config.toolTimeoutMs`.
  */
 export const SLOW_TOOLS: ReadonlySet<string> = new Set([
+  "telegram-send-rich-message",
+  "telegram-edit-rich-message",
+  "telegram-save-rich-draft",
   "telegram-send-file",
   "telegram-send-voice",
   "telegram-send-video-note",

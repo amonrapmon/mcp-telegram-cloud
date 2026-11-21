@@ -28,6 +28,14 @@ export interface ExclusionEntry {
  * cloud-specific (multi-tenant, hosted-only flows, etc.).
  */
 export const CLOUD_ONLY: ExclusionEntry[] = [
+  { name: "telegram-preview-rich-message", reason: "Rich tool from our pinned core fork, absent from released npm core used in parity CI; write operations are env-gated." },
+  { name: "telegram-rich-message-capabilities", reason: "Rich tool from our pinned core fork, absent from released npm core used in parity CI; write operations are env-gated." },
+  { name: "telegram-get-rich-message", reason: "Rich tool from our pinned core fork, absent from released npm core used in parity CI; write operations are env-gated." },
+  { name: "telegram-get-rich-send-status", reason: "Rich tool from our pinned core fork, absent from released npm core used in parity CI; write operations are env-gated." },
+  { name: "telegram-send-rich-message", reason: "Rich tool from our pinned core fork, absent from released npm core used in parity CI; write operations are env-gated." },
+  { name: "telegram-edit-rich-message", reason: "Rich tool from our pinned core fork, absent from released npm core used in parity CI; write operations are env-gated." },
+  { name: "telegram-save-rich-draft", reason: "Rich tool from our pinned core fork, absent from released npm core used in parity CI; write operations are env-gated." },
+
   {
     name: "telegram-accounts-list",
     reason:
