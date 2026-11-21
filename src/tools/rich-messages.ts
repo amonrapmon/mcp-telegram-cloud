@@ -64,7 +64,7 @@ export function assertRichWriteDestination(chatId: string, allowlist = process.e
 }
 const chatId = z.string().min(1).max(256);
 const markdown = z.string().min(1).max(131072).describe(
-  "Text-only Rich Markdown; HTML, media, footnotes, math and nested lists unsupported.",
+  "Rich Markdown text. Inline photo supported via separate photo field; HTML, Markdown media tags, footnotes, math and nested lists unsupported.",
 );
 const requestId = z.string().uuid().describe("UUID v4, reuse after an uncertain result, never blindly resend.");
 const messageId = z.number().int().positive().max(2147483647);
@@ -143,7 +143,7 @@ export const RICH_TOOLS: ToolDefinition[] = [
   },
   {
     name: "telegram-send-rich-message",
-    description: "Send a native MTProto Rich message once. Requires explicit env opt-in, allowlist and Telegram Premium eligibility.",
+    description: "Send a native MTProto Rich message once with optional inline photo (public HTTPS or staged uploadId). One Telegram post, no follow-up edit. Requires explicit env opt-in, allowlist and Telegram Premium.",
     requiresEnv: RICH_WRITE_FLAG,
     inputSchema: { chatId, requestId, markdown, photo, ...sendOptions },
     annotations: CONFIRMED_WRITE_PUBLIC,

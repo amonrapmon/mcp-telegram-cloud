@@ -62,3 +62,5 @@ For privately generated files, upload them first with `telegram-create-upload-li
 The one MCP send call resolves the photo (max 20 MiB; JPEG, PNG, WebP), stages it via MTProto `messages.uploadMedia` (does not publish), builds `PageBlockPhoto` and `InputRichMessage.photos`, then calls `messages.sendMessage` **once** with the complete Rich message. Existing UUID journal, exact chat allowlist, Premium check and readback apply to the combined payload. Replays with the same UUID read the durable receipt without re-uploading or reposting; mismatched payloads are refused.
 
 Only one photo per Rich call is implemented here. Slideshows/carousels and video are out of scope. Do not claim these work in this build. Never post to a channel without explicit approval of the exact image and text.
+
+Readback additionally checks that every PageBlockPhoto ID is present in the Telegram-returned RichMessage.photos array. If message delivery succeeded but the media reference/readback cannot be verified, the journal preserves the sent message ID and callers must inspect it, **not resend**.
