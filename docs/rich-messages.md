@@ -23,7 +23,7 @@ Rich operation receipts are persisted under `/app/data/rich-journal/<sha256 OAut
 
 A requestId UUIDv4 protects against duplicate submissions. After a timeout, query get-rich-send-status with the SAME ID. Do not retry with a new one before reconciling actual Telegram history.
 
-Supported in MVP: text-rich headings, tables, lists, quotes, links, code; **not** media, HTML, formulas, footnotes or nested lists. Reject unsupported constructs rather than silently stripping them.
+Supported: Rich headings, tables, lists, quotes, links, code, plus **one inline photo** via the separate `photo` field. Unsupported: HTML, Markdown image tags, multiple photos, formulas, footnotes or nested lists. Reject unsupported constructs rather than silently stripping them.
 
 ## Test plan
 
@@ -39,7 +39,7 @@ Rollback: previous Cloud image and core Git SHA. Session data is not migrated or
 Source: [Core fork PR](https://github.com/amonrapmon/mcp-telegram/pull/1).
 
 
-## Inline image in one native Rich send (Draft, requires new core and Cloud image)
+## Inline image in one native Rich send (live verified)
 
 `telegram-send-rich-message` now accepts an optional `photo` alongside `markdown`:
 
@@ -56,8 +56,7 @@ Source: [Core fork PR](https://github.com/amonrapmon/mcp-telegram/pull/1).
 }
 ```
 
-The URL must be genuinely public HTTPS; Cloud uses the existing SSRF-checked stream fetcher.
-For privately generated files, upload them first with `telegram-create-upload-link` or `POST /my/upload`, then use `{kind:"upload", uploadId:"upl_..."}`. **The upload is staging only**, never a channel message. A ChatGPT sandbox file path cannot be passed directly to the remote Cloud server.
+The URL must be HTTPS and accessible to Cloud's existing SSRF-protected fetcher. **An expiring Google Drive raw-download signed URL works without making the Drive file public.** The ordinary Google Drive `/view` link is NOT a raw image URL. For a ChatGPT image, prefer the [agent workflow](../skills/telegram-rich-publish/SKILL.md). Without Drive, use `telegram-create-upload-link` or `POST /my/upload`, then `{kind:"upload", uploadId:"upl_..."}`. Staging is not a separate public post. Local ChatGPT sandbox paths are not accessible to the remote Cloud server.
 
 The one MCP send call resolves the photo (max 20 MiB; JPEG, PNG, WebP), stages it via MTProto `messages.uploadMedia` (does not publish), builds `PageBlockPhoto` and `InputRichMessage.photos`, then calls `messages.sendMessage` **once** with the complete Rich message. Existing UUID journal, exact chat allowlist, Premium check and readback apply to the combined payload. Replays with the same UUID read the durable receipt without re-uploading or reposting; mismatched payloads are refused.
 
@@ -95,4 +94,8 @@ Pass that HTTPS download URL to `telegram-send-rich-message` as `photo.source={k
 
 Do not copy signed `download_url` into a public post or log: it is temporary file access. A standard Drive viewing link is NOT a raw download link and may be private. Reuse the **exact same URL** when replaying a durable request UUID: image source URL is part of the immutable hash; on expiration request a fresh link and **new** UUID only if no earlier send succeeded or remained uncertain.
 
-Validated initial bridge pieces on 2026-11-21: ChatGPT-hosted image was uploaded via connected Google Drive upload_file (3,434,167 B PNG), Drive fetch returned an expiring HTTPS download_url, and Telegram Cloud accessed the bytes and invoked `messages.uploadMedia`. First send failed with Telegram `PHOTO_EXT_INVALID` because the extension was missing; Core filename fix at 3321277 is untested until the image is rebuilt and replayed with a fresh UUID.
+**Live verification, 2026-11-21:** ChatGPT image bytes were uploaded by the connected Google Drive `upload_file(file_uri)` action. An authorized `fetch(download_raw_file:true,include_base64:false)` returned an expiring raw HTTPS `file_uri.download_url`. Source file remained private. Initial Telegram errors were `PHOTO_EXT_INVALID` (opaque signed URL lacked image extension, fixed in Core commit `3321277`) and then `IMAGE_PROCESS_FAILED` for the original PNG. The SAME illustration converted to JPEG was accepted. Saved Messages test **#400627** verified `photoCount:1`, `tableCount:1`. Approved public post [@no_skazhu/#8](https://t.me/no_skazhu/8) was **one** native Rich message: `verified:true`, `partial:false`, `photoReferencesValid:true`, `photoCount:1`, `tableCount:1`, **47 blocks**, `unsupported:[]`, with no separate photo publication or edit.
+
+**Agent default:** generated/chat attachment file reference → real JPEG (convert PNG as needed) → Google Drive `upload_file` → Google Drive `fetch` with raw-download flags → `telegram-preview-rich-message` → ONE `telegram-send-rich-message` with `photo.source.kind:"url"` and the signed raw URL → `telegram-get-rich-message` → `telegram-get-message-link`. Use the signed URL promptly and never disclose it. UUID and URL participate in idempotent payload hashing. A new signed URL requires a new UUID only after an earlier attempt has been **conclusively rejected**; uncertain sends must be reconciled and not blindly retried.
+
+See **[telegram-rich-publish agent skill](../skills/telegram-rich-publish/SKILL.md)**.

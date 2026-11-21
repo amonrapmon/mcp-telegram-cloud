@@ -81,7 +81,7 @@ const photo = z.object({
   source: richPhotoSource,
   caption: z.string().max(1024).optional(),
   placement: z.enum(["before", "after"]).optional(),
-}).optional().describe("Optional ONE native inline photo in the same Rich message: HTTPS URL, account-bound uploadId, or an existing Telegram photo from Saved Messages (kind=telegram,chatId=me,messageId). No extra public post or edit.");
+}).optional().describe("One native photo inline with Rich text. For ChatGPT images, prefer JPEG → Google Drive upload_file(file_uri) → Drive fetch(download_raw_file:true,include_base64:false) → signed HTTPS file_uri.download_url as source kind:url. Do NOT pass Drive /view links. Also supports staged uploadId or an already-saved Telegram photo. No extra public post or edit.");
 
 function photoIdentity(source: z.infer<typeof richPhotoSource>) {
   if (source.kind === "telegram") return `telegram:me:${source.messageId}`;
@@ -151,7 +151,7 @@ export const RICH_TOOLS: ToolDefinition[] = [
   },
   {
     name: "telegram-send-rich-message",
-    description: "Send one native MTProto Rich message with optional inline photo. Source: HTTPS, staged uploadId, or existing photo in Saved Messages (telegram/me/messageId), without reupload. Exact destination allowlist and Premium required.",
+    description: "Publish ONE native Telegram Rich post with optional photo. For ChatGPT art: JPEG → connected Google Drive upload_file → Drive fetch(download_raw_file:true,include_base64:false) → signed raw file_uri.download_url as source kind:url; NEVER use Drive /view links or stage in Saved Messages. UUIDv4 journal; reconcile uncertain sends. Premium and exact allowlist required.",
     requiresEnv: RICH_WRITE_FLAG,
     inputSchema: { chatId, requestId, markdown, photo, ...sendOptions },
     annotations: CONFIRMED_WRITE_PUBLIC,

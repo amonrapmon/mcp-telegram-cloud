@@ -95,6 +95,18 @@ Telegram's own limit work. Agents can also pull 64 KiB chunks through the same
 MCP tool with `downloadId` and `offset`, without extracting an OAuth token.
 See [the full flow, recovery cases and security model](docs/downloads.md).
 
+## Native Rich publishing with ChatGPT-generated photos
+
+For one Rich post with headings, native tables and an inline photo, use
+`telegram-send-rich-message`. Verified path: a real ChatGPT file reference →
+JPEG (convert PNG when needed) → connected Google Drive `upload_file` → Drive
+`fetch(download_raw_file:true,include_base64:false)` → the short-lived
+`file_uri.download_url` → one Rich send → readback. This requires **no**
+Google login in Telegram MCP, manual curl, or intermediate Saved Messages.
+Ordinary Drive `/view` links cannot be used as raw image URLs. See the
+[agent skill](skills/telegram-rich-publish/SKILL.md) and
+[Rich technical guide](docs/rich-messages.md).
+
 ## Sending a local file
 
 The media tools (`telegram-send-file`, `telegram-send-album`,

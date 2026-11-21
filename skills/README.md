@@ -9,6 +9,13 @@ which tool to call first, when to stop and ask, and what the answer must
 contain. `telegram-reply` additionally requires explicit user confirmation of
 the recipient and the exact text before anything is sent.
 
+- **`telegram-rich-publish`**: approved native Rich posts with a ChatGPT image.
+  Prefer JPEG → Google Drive `upload_file` with the actual file reference →
+  `fetch(download_raw_file:true,include_base64:false)` → signed raw HTTPS
+  `file_uri.download_url` → ONE `telegram-send-rich-message` → exact readback.
+  No manual `curl`, no intermediate Saved Messages, no public Drive sharing.
+  See the skill for UUID idempotency and recovery after rejections.
+
 Delivery: zip the skill directories at archive root and upload the archive on
 the **Skills** tab of the plugin submission portal.
 
