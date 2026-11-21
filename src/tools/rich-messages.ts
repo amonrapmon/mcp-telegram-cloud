@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { join } from "node:path";
 import { z } from "zod";
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import type { TelegramService } from "@overpod/mcp-telegram/service";
 import type { ToolDefinition } from "../tool-registry.js";
 import { READ_ONLY, CONFIRMED_WRITE_LOCAL, CONFIRMED_WRITE_PUBLIC, textResult } from "./helpers.js";
@@ -25,7 +26,7 @@ const rich = (telegram: TelegramService): RichApi => telegram as unknown as Rich
  * An ambiguous Telegram acknowledgement must never look like a completed send.
  * The durable receipt is still returned so callers can query its requestId.
  */
-export function richWriteResult(receipt: unknown) {
+export function richWriteResult(receipt: unknown): CallToolResult {
   const output = textResult(JSON.stringify(receipt));
   const status = (receipt && typeof receipt === "object" && "state" in receipt)
     ? (receipt as { state?: unknown }).state
