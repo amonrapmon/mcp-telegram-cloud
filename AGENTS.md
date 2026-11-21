@@ -1,5 +1,9 @@
 # AGENTS.md: Cloud repository guidance
 
+## Editorial workflow for Telegram posts
+
+Before publishing an authored Telegram Rich post, read `skills/telegram-mobile-editor/SKILL.md` and apply its mobile-first content pass **before** `skills/telegram-rich-publish/SKILL.md`. The editor preserves agreed wording, voice, facts and the humor rhythm; it does not publish. Avoid walls of text, but never force every sentence into an isolated paragraph. Do not conflate Rich compiler success with a real mobile visual preview.
+
 ## Native Rich publishing
 
 For tasks involving a ChatGPT-generated image plus a Telegram Rich post, **read `skills/telegram-rich-publish/SKILL.md` first**, then `docs/rich-messages.md` for technical details. This is the verified operator workflow. Do not reconstruct it from older PR discussion or propose a manual `curl` unless the Drive connector/file reference is actually unavailable.

@@ -97,8 +97,11 @@ See [the full flow, recovery cases and security model](docs/downloads.md).
 
 ## Native Rich publishing with ChatGPT-generated photos
 
-For one Rich post with headings, native tables and an inline photo, use
-`telegram-send-rich-message`. Verified path: a real ChatGPT file reference →
+For one Rich post with headings, native tables and an inline photo, run the
+[mobile editing skill](skills/telegram-mobile-editor/SKILL.md) **before** the
+[publishing skill](skills/telegram-rich-publish/SKILL.md). The editor ensures
+comfortable mobile paragraph rhythm without rewriting approved facts or jokes.
+The transport uses `telegram-send-rich-message`. Verified path: a real ChatGPT file reference →
 JPEG (convert PNG when needed) → connected Google Drive `upload_file` → Drive
 `fetch(download_raw_file:true,include_base64:false)` → the short-lived
 `file_uri.download_url` → one Rich send → readback. This requires **no**

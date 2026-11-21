@@ -7,12 +7,16 @@ description: Publish an approved native Telegram Rich message with headings, tab
 
 Use this workflow when the user approves a Telegram channel post with an image. The end result is **one** final Telegram message, not one total MCP call. Keep the exact approved text, image and destination. A clear "publish this approved draft" is sufficient approval; do not unnecessarily reconfirm it. Do not switch to a stock picture or send the text without the requested photo.
 
+## Editorial gate before transfer (mandatory for authored posts)
+
+Before requesting image bytes or a signed URL, run the editorial review in [`telegram-mobile-editor`](../telegram-mobile-editor/SKILL.md). Use its mobile readability and tone guidance for **new and revised** posts; keep a previously approved exact post intact unless the user requests edits or approves the revised version. Confirm the final Markdown and intended image are authorized. This review must not send anything; the present skill alone owns transport, native preview, UUID handling and publication.
+
 ## Default flow (verified live 2026-11-21)
 
 1. Get the **actual generated/uploaded image file**. Prefer a valid RGB **JPEG** with `.jpg` extension: the real PNG image in our test gave Telegram `IMAGE_PROCESS_FAILED`; conversion of that very same image to JPEG worked. If conversion is needed, flatten alpha appropriately, preserve visual content and aspect ratio. Do not assume every PNG fails.
 2. Call connected Google Drive `upload_file` using the **host-provided image file reference** in `file_uri` (not a local `/mnt/data` path and not a made-up URL). Specify `file_name:"image.jpg"` and `mime_type:"image/jpeg"`. Save the actual returned `id` and `url`. **Do not make the Drive file public**; the connector already has authenticated access.
 3. Call Google Drive `fetch` with `url` equal to that returned view URL, `download_raw_file:true`, `include_base64:false`. Read `result.file_uri.download_url`; it is an expiring **signed HTTPS URL to the raw image bytes**. Use it promptly. The normal `https://drive.google.com/file/d/.../view` URL is NOT a direct photo URL. Keep the signed URL confidential: never print it in an answer, post, issue or log.
-4. Check the Telegram recipient and eligibility if needed (`telegram-get-chat-info`, `telegram-rich-message-capabilities`). Build Rich Markdown, with the photo in the **separate** `photo` field, not `![](url)`. Validate with `telegram-preview-rich-message`; do not invent tables when the draft contains none.
+4. Check the Telegram recipient and eligibility if needed (`telegram-get-chat-info`, `telegram-rich-message-capabilities`). Use the **editor-reviewed, approved** Rich Markdown, with the photo in the **separate** `photo` field, not `![](url)`. Validate with `telegram-preview-rich-message`; it checks native block structure but **does not certify mobile visual comfort**. Do not invent tables when the draft contains none.
 5. Generate **one fresh UUID v4** for a new publication. Call `telegram-send-rich-message` **once**:
    ```json
    {

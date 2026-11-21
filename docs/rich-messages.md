@@ -99,3 +99,11 @@ Do not copy signed `download_url` into a public post or log: it is temporary fil
 **Agent default:** generated/chat attachment file reference → real JPEG (convert PNG as needed) → Google Drive `upload_file` → Google Drive `fetch` with raw-download flags → `telegram-preview-rich-message` → ONE `telegram-send-rich-message` with `photo.source.kind:"url"` and the signed raw URL → `telegram-get-rich-message` → `telegram-get-message-link`. Use the signed URL promptly and never disclose it. UUID and URL participate in idempotent payload hashing. A new signed URL requires a new UUID only after an earlier attempt has been **conclusively rejected**; uncertain sends must be reconciled and not blindly retried.
 
 See **[telegram-rich-publish agent skill](../skills/telegram-rich-publish/SKILL.md)**.
+
+## Mobile-first editorial layer (before transport)
+
+Agent authorship and mobile readability are handled by [`telegram-mobile-editor`](../skills/telegram-mobile-editor/SKILL.md), **before** `telegram-rich-publish` stages photos or sends. The editing pass preserves the user's meaning, factual details, author voice, timing of jokes and exact user-approved wording. It favors compact paragraphs, one thought per block, meaningful headings, short table cells and selective emphasis. Avoid both walls of text and one-sentence-per-line ladders. No rigid length limits should be misrepresented as Telegram or research requirements.
+
+The Markdown compiler's `telegram-preview-rich-message` checks block structure and limits; it cannot reproduce actual Telegram mobile layout, screen width, font scaling or app behavior. A visual rendering claim requires an observed screenshot/device preview. Publishing always requires approved destination/copy and a verifiable receipt.
+
+Research sources: [NN/g reading patterns](https://www.nngroup.com/articles/how-people-read-online/), [GOV.UK clear language](https://guidance.publishing.service.gov.uk/writing-to-gov-uk-standards/writing-guidelines/clear-language/), [ONS mobile reading](https://service-manual.ons.gov.uk/content/writing-for-users/how-people-read-online).

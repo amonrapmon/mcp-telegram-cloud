@@ -9,7 +9,12 @@ which tool to call first, when to stop and ask, and what the answer must
 contain. `telegram-reply` additionally requires explicit user confirmation of
 the recipient and the exact text before anything is sent.
 
+- **`telegram-mobile-editor`**: mobile-first editorial pass before Rich publishing.
+  Preserve the author's voice, facts and jokes; use thoughtful paragraph rhythm,
+  a clear opening, purposeful headings and compact native tables. Heuristic
+  targets are not hard display limits. Does not send messages.
 - **`telegram-rich-publish`**: approved native Rich posts with a ChatGPT image.
+  Run `telegram-mobile-editor` before composing/publishing the final Rich copy.
   Prefer JPEG → Google Drive `upload_file` with the actual file reference →
   `fetch(download_raw_file:true,include_base64:false)` → signed raw HTTPS
   `file_uri.download_url` → ONE `telegram-send-rich-message` → exact readback.
