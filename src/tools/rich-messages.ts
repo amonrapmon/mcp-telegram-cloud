@@ -65,7 +65,7 @@ export function assertRichWriteDestination(chatId: string, allowlist = process.e
 }
 const chatId = z.string().min(1).max(256);
 const markdown = z.string().min(1).max(131072).describe(
-  "Rich Markdown text. Inline photo supported via separate photo field; HTML, Markdown media tags, footnotes, math and nested lists unsupported.",
+  "Native Rich Markdown. For authored Telegram posts, first apply telegram-mobile-editor: short readable paragraphs, clear opening, meaningful headings, sparse emphasis, preserve the user's approved wording. Photo is a separate field. HTML, Markdown media tags, footnotes, math and nested lists unsupported.",
 );
 const requestId = z.string().uuid().describe("UUID v4, reuse after an uncertain result, never blindly resend.");
 const messageId = z.number().int().positive().max(2147483647);
@@ -121,7 +121,7 @@ const sendOptions = {
 export const RICH_TOOLS: ToolDefinition[] = [
   {
     name: "telegram-preview-rich-message",
-    description: "Compile Rich Markdown into native Telegram blocks, without sending.",
+    description: "Compile Rich Markdown into Telegram blocks without sending. This validates semantics and tables, NOT visual readability on mobile; use the telegram-mobile-editor guidelines before preview.",
     inputSchema: { markdown, ...style },
     annotations: READ_ONLY,
     handler: async ({ markdown, rtl, noautolink }, { telegram }) =>
@@ -151,7 +151,7 @@ export const RICH_TOOLS: ToolDefinition[] = [
   },
   {
     name: "telegram-send-rich-message",
-    description: "Publish ONE native Telegram Rich post with optional photo. For ChatGPT art: JPEG → connected Google Drive upload_file → Drive fetch(download_raw_file:true,include_base64:false) → signed raw file_uri.download_url as source kind:url; NEVER use Drive /view links or stage in Saved Messages. UUIDv4 journal; reconcile uncertain sends. Premium and exact allowlist required.",
+    description: "Publish ONE native Telegram Rich post with optional photo. Editorial gate: use telegram-mobile-editor for a readable phone-first opening, short cohesive paragraphs and sparing emphasis; NEVER silently rewrite already approved copy. For ChatGPT art: JPEG → connected Google Drive upload_file → Drive fetch(download_raw_file:true,include_base64:false) → signed raw file_uri.download_url as source kind:url; NEVER use Drive /view links or stage in Saved Messages. UUIDv4 journal; reconcile uncertain sends. Premium and exact allowlist required.",
     requiresEnv: RICH_WRITE_FLAG,
     inputSchema: { chatId, requestId, markdown, photo, ...sendOptions },
     annotations: CONFIRMED_WRITE_PUBLIC,
