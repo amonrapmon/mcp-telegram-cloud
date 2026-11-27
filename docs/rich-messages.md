@@ -107,3 +107,25 @@ Agent authorship and mobile readability are handled by [`telegram-mobile-editor`
 The Markdown compiler's `telegram-preview-rich-message` checks block structure and limits; it cannot reproduce actual Telegram mobile layout, screen width, font scaling or app behavior. A visual rendering claim requires an observed screenshot/device preview. Publishing always requires approved destination/copy and a verifiable receipt.
 
 Research sources: [NN/g reading patterns](https://www.nngroup.com/articles/how-people-read-online/), [GOV.UK clear language](https://guidance.publishing.service.gov.uk/writing-to-gov-uk-standards/writing-guidelines/clear-language/), [ONS mobile reading](https://service-manual.ons.gov.uk/content/writing-for-users/how-people-read-online).
+
+## Paragraph spacing and soft breaks (open R&D)
+
+**2026-11-27 live observation:** [NПНС post #9](https://t.me/no_skazhu/9) was sent as one native Rich message with an inline original PNG, 48 blocks, five native dividers, one quotation and intentional single newlines. Receipt and readback verified the structure, but an owner-provided Telegram screenshot showed that adjacent native paragraphs have very little visual separation. This is an editorial readability limitation, not a delivery failure.
+
+Current [Core compiler](https://github.com/amonrapmon/mcp-telegram/blob/main/src/rich-markdown.ts) groups consecutive nonblank prose lines into a PageBlockParagraph via `paragraph.join("\n")`. Whitespace-only lines are boundaries and skipped. Live read-only preview results:
+
+| Input | Result |
+| --- | --- |
+| A single LF | One paragraph; LF retained |
+| Two LFs | Two paragraph blocks |
+| Four LFs | Same two paragraph blocks, extra whitespace discarded |
+| Blank line containing NBSP | Same two paragraph blocks |
+| Inline HTML br | Rejected as unsupported HTML |
+| Two U+2028 line separators | Preserved inside one block; actual client rendering unverified |
+| Markdown thematic rule | Native PageBlockDivider |
+
+The [transcriber onboarding](https://github.com/amonrapmon/transriber-ext/blob/main/src/services/rich_onboarding.py) uses Bot API Rich HTML: one paragraph with single/double br tags and a native hr before actions. Its [tests](https://github.com/amonrapmon/transriber-ext/blob/main/tests/test_rich_onboarding.py) explicitly assert this layout. The MTProto MCP uses a different compiler, so this does not establish HTML support in MCP.
+
+**Next engineering step (not implemented):** first test a double LF inside one native TextPlain/TextConcat paragraph on actual Telegram clients. If verified, design narrowly scoped explicit break syntax (e.g. br / double br mapped to LF / double LF, without enabling arbitrary HTML), preserve existing Markdown paragraph and divider semantics, cover mixed inline formatting, limits and rejection of other HTML in tests. Verify a real rendered screenshot on mobile/desktop; compare single newline, double newline and separate native paragraphs. Use Saved Messages only after explicit authorization. Do not use invisible-character workarounds as a production feature before visual verification.
+
+No runtime changes or public edits were made for this finding. Source skill guidance lives in [telegram-mobile-editor](../skills/telegram-mobile-editor/SKILL.md).
