@@ -34,6 +34,19 @@ Use the following as **soft editorial heuristics**, not Telegram limits and not 
 
 The numeric targets in this table are **our style-guide defaults**, not research-proven universal thresholds. Prioritize meaning and reader comprehension. A longer cohesive paragraph is better than an artificial vertical staircase.
 
+## Known Telegram paragraph-spacing limitation (2026-11-27)
+
+Observed on the actual rendered [NПНС post #9](https://t.me/no_skazhu/9): native headings, dividers, bold, quotation and intentional single-line breaks survive, but adjacent PageBlockParagraph blocks are visually too close. A successful compiler preview/readback does not mean adequate vertical rhythm.
+
+- A single literal newline inside Markdown prose stays inside one native paragraph. Use it selectively for parallel phrases and punchlines, not fixed-width wrapping.
+- Two or more consecutive newlines split native paragraph blocks; extra blank lines are discarded, including a line containing only a nonbreaking space. Adding blank lines in the source does not add visible air.
+- `---` compiles to a native PageBlockDivider. Use between major sections, not between ordinary paragraphs.
+- `<br>` and `<br><br>` are currently rejected by the MTProto Markdown compiler. Do not send them or claim support. The Bot API Rich HTML implementation in [transriber-ext](https://github.com/amonrapmon/transriber-ext/blob/main/src/services/rich_onboarding.py) successfully uses one paragraph with single and double HTML breaks; this is a reference approach, not current MCP syntax.
+- Open R&D: verify rendering of a double literal newline inside one native text block on actual Telegram clients, then consider narrowly allowlisted explicit break syntax in Core. U+2028 survives compilation but is visually unverified; do not rely on it in published posts.
+- Until a solution is verified, preserve approved copy, use meaningful native section dividers and avoid spacing hacks. Document observed screenshots separately from compiler checks. Do not edit an existing public post or send a test to Saved Messages without explicit authorization.
+
+See [Rich Messages: paragraph spacing](../../docs/rich-messages.md#paragraph-spacing-and-soft-breaks--open-rd).
+
 ## Editing sequence
 
 1. **Read the draft as a story.** Identify what makes the audience care, where the plot/argument turns, the essential factual spine and the final payoff. Mark repetitive setup or tangents that do not contribute, but never remove critical information.
